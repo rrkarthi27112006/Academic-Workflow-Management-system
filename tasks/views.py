@@ -40,6 +40,15 @@ def teacher_task_list(request):
 @teacher_required
 def task_create(request):
     teacher = request.user.teacher_profile
+    from academics.models import ClassRoom
+    teacher_classes = ClassRoom.objects.filter(class_teacher=teacher).prefetch_related('subjects')
+    if not teacher_classes.exists():
+        teacher_classes = ClassRoom.objects.all().prefetch_related('subjects')
+    class_subjects_data = {
+        str(c.id): [{'id': s.id, 'name': s.name} for s in c.subjects.all()]
+        for c in teacher_classes
+    }
+
     if request.method == 'POST':
         form = TaskForm(request.POST, request.FILES, teacher=teacher)
         if form.is_valid():
@@ -47,26 +56,40 @@ def task_create(request):
             task.teacher = teacher
             task.save()
             notify_task_assigned(task)
-            messages.success(request, 'Task created and assigned successfully.')
+            messages.success(request, f'Task "{task.title}" created and assigned to {task.class_assigned.name}.')
             return redirect('tasks:teacher_task_list')
     else:
         form = TaskForm(teacher=teacher)
-    return render(request, 'tasks/task_form.html', {'form': form, 'title': 'Create Task'})
+    return render(request, 'tasks/task_form.html', {
+        'form': form, 'title': 'Create Task', 'class_subjects_json': class_subjects_data,
+    })
 
 
 @teacher_required
 def task_edit(request, pk):
     teacher = request.user.teacher_profile
     task = get_object_or_404(Task, pk=pk, teacher=teacher)
+    from academics.models import ClassRoom
+    teacher_classes = ClassRoom.objects.filter(class_teacher=teacher).prefetch_related('subjects')
+    if not teacher_classes.exists():
+        teacher_classes = ClassRoom.objects.all().prefetch_related('subjects')
+    class_subjects_data = {
+        str(c.id): [{'id': s.id, 'name': s.name} for s in c.subjects.all()]
+        for c in teacher_classes
+    }
+
     if request.method == 'POST':
         form = TaskForm(request.POST, request.FILES, instance=task, teacher=teacher)
         if form.is_valid():
-            form.save()
+            task = form.save()
             messages.success(request, 'Task updated successfully.')
             return redirect('tasks:teacher_task_list')
     else:
         form = TaskForm(instance=task, teacher=teacher)
-    return render(request, 'tasks/task_form.html', {'form': form, 'title': 'Edit Task'})
+    return render(request, 'tasks/task_form.html', {
+        'form': form, 'title': 'Edit Task', 'class_subjects_json': class_subjects_data,
+    })
+
 
 
 @teacher_required

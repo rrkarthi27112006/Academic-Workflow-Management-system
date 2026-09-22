@@ -10,7 +10,7 @@ from .forms import ClassRoomForm
 @teacher_required
 def class_list(request):
     teacher = request.user.teacher_profile
-    classes = ClassRoom.objects.filter(class_teacher=teacher).prefetch_related('students__user')
+    classes = ClassRoom.objects.filter(class_teacher=teacher).prefetch_related('students__user', 'subjects')
     return render(request, 'academics/class_list.html', {'classes': classes})
 
 
@@ -18,7 +18,7 @@ def class_list(request):
 def class_create(request):
     teacher = request.user.teacher_profile
     if request.method == 'POST':
-        form = ClassRoomForm(request.POST)
+        form = ClassRoomForm(request.POST, teacher=teacher)
         if form.is_valid():
             classroom = form.save(commit=False)
             classroom.class_teacher = teacher
@@ -29,7 +29,7 @@ def class_create(request):
             messages.success(request, f'Class "{classroom.name}" created with {classroom.students.count()} student(s).')
             return redirect('academics:class_list')
     else:
-        form = ClassRoomForm()
+        form = ClassRoomForm(teacher=teacher)
     return render(request, 'academics/class_form.html', {'form': form, 'title': 'Create Class'})
 
 
@@ -38,14 +38,15 @@ def class_edit(request, pk):
     teacher = request.user.teacher_profile
     classroom = get_object_or_404(ClassRoom, pk=pk)
     if request.method == 'POST':
-        form = ClassRoomForm(request.POST, instance=classroom)
+        form = ClassRoomForm(request.POST, instance=classroom, teacher=teacher)
         if form.is_valid():
             form.save()
             messages.success(request, f'Class "{classroom.name}" updated.')
             return redirect('academics:class_list')
     else:
-        form = ClassRoomForm(instance=classroom)
+        form = ClassRoomForm(instance=classroom, teacher=teacher)
     return render(request, 'academics/class_form.html', {'form': form, 'title': 'Edit Class'})
+
 
 
 @teacher_required

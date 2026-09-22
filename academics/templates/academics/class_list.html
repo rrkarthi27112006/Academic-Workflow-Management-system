@@ -7,12 +7,19 @@
 </div>
 <div class="table-wrap">
 <table>
-  <thead><tr><th>Name</th><th>School</th><th>Class Teacher</th><th>Students</th><th>Actions</th></tr></thead>
+  <thead><tr><th>Name</th><th>School</th><th>Subjects</th><th>Class Teacher</th><th>Students</th><th>Actions</th></tr></thead>
   <tbody>
   {% for c in classes %}
     <tr>
-      <td>{{ c.name }}</td>
+      <td><strong>{{ c.name }}</strong></td>
       <td>{{ c.school|default:"—" }}</td>
+      <td>
+        {% for subj in c.subjects.all %}
+          <span class="badge badge-info">{{ subj.name }}</span>{% if not forloop.last %} {% endif %}
+        {% empty %}
+          <span class="muted">—</span>
+        {% endfor %}
+      </td>
       <td>{{ c.class_teacher|default:"—" }}</td>
       <td>{{ c.student_count }}</td>
       <td>
@@ -21,7 +28,7 @@
       </td>
     </tr>
   {% empty %}
-    <tr><td colspan="5"><div class="empty-state">No classes yet. Create one to get started.</div></td></tr>
+    <tr><td colspan="6"><div class="empty-state">No classes yet. Create one to get started.</div></td></tr>
   {% endfor %}
   </tbody>
 </table>

@@ -8,12 +8,25 @@ class SchoolAdmin(admin.ModelAdmin):
     search_fields = ('name',)
 
 
+class ClassSubjectInline(admin.TabularInline):
+    model = Subject.classes.through
+    extra = 1
+    verbose_name = 'Subject'
+    verbose_name_plural = 'Subjects Assigned to this Class'
+
+
 @admin.register(ClassRoom)
 class ClassRoomAdmin(admin.ModelAdmin):
-    list_display = ('name', 'school', 'class_teacher', 'student_count')
+    list_display = ('name', 'school', 'class_teacher', 'get_subjects_display', 'student_count')
     list_filter = ('school', 'class_teacher')
     search_fields = ('name',)
     filter_horizontal = ('students',)
+    inlines = [ClassSubjectInline]
+
+    def get_subjects_display(self, obj):
+        return ", ".join([s.name for s in obj.subjects.all()]) or "None"
+    get_subjects_display.short_description = 'Subjects'
+
 
 
 @admin.register(Subject)

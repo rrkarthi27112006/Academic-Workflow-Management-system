@@ -10,4 +10,67 @@
     <a href="{% url 'tasks:teacher_task_list' %}" class="btn btn-outline">Cancel</a>
   </form>
 </div>
+
+{% if class_subjects_json %}
+{{ class_subjects_json|json_script:"class-subjects-data" }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const classSelect = document.getElementById('id_class_assigned');
+  const subjectSelect = document.getElementById('id_subject');
+  const dataEl = document.getElementById('class-subjects-data');
+  if (!classSelect || !subjectSelect || !dataEl) return;
+
+  let classSubjects = {};
+  try {
+    classSubjects = JSON.parse(dataEl.textContent || '{}');
+  } catch (e) {
+    console.error('Failed to parse class subjects data', e);
+  }
+
+  const allSubjectOptions = Array.from(subjectSelect.options).map(opt => ({
+    value: opt.value,
+    text: opt.text
+  }));
+
+  function updateSubjects() {
+    const classId = classSelect.value;
+    const currentSubject = subjectSelect.value;
+    const allowed = classSubjects[classId] || [];
+
+    if (classId && allowed.length > 0) {
+      subjectSelect.innerHTML = '<option value="">---------</option>';
+      let foundCurrent = false;
+      allowed.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = s.name;
+        if (s.id.toString() === currentSubject) {
+          opt.selected = true;
+          foundCurrent = true;
+        }
+        subjectSelect.appendChild(opt);
+      });
+      if (!foundCurrent && allowed.length === 1) {
+        subjectSelect.value = allowed[0].id;
+      }
+    } else {
+      subjectSelect.innerHTML = '';
+      allSubjectOptions.forEach(opt => {
+        const o = document.createElement('option');
+        o.value = opt.value;
+        o.textContent = opt.text;
+        if (opt.value === currentSubject) o.selected = true;
+        subjectSelect.appendChild(o);
+      });
+    }
+  }
+
+  classSelect.addEventListener('change', updateSubjects);
+  if (classSelect.value) {
+    updateSubjects();
+  }
+});
+</script>
+{% endif %}
 {% endblock %}
+

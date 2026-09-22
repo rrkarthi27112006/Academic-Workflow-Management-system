@@ -116,3 +116,48 @@ class EduTrackWorkflowTests(TestCase):
         student_notifs = Notification.objects.filter(user=self.student_user, notification_type='reviewed')
         self.assertTrue(student_notifs.exists())
 
+    def test_admin_group_unregistered(self):
+        from django.contrib import admin
+        from django.contrib.auth.models import Group
+        self.assertNotIn(Group, admin.site._registry)
+
+    def test_class_creation_with_subjects(self):
+        self.client.login(username='teacher1', password='password123')
+        subject2 = Subject.objects.create(name='Science', code='SCI101')
+        subject2.teachers.add(self.teacher)
+
+        # Create class with 2 subjects
+        response = self.client.post('/academics/classes/create/', {
+            'name': 'Class 10-B',
+            'subjects': [self.subject.id, subject2.id],
+            'students': [self.student.id],
+        })
+        self.assertEqual(response.status_code, 302)
+        new_class = ClassRoom.objects.get(name='Class 10-B')
+        self.assertEqual(new_class.subjects.count(), 2)
+        self.assertIn(self.subject, new_class.subjects.all())
+        self.assertIn(subject2, new_class.subjects.all())
+
+    def test_task_creation_for_whole_class(self):
+        self.client.login(username='teacher1', password='password123')
+        due = timezone.now() + timedelta(days=3)
+        response = self.client.post('/tasks/teacher/create/', {
+            'title': 'Chapter 1 Exercises',
+            'description': 'Solve problems 1 through 10.',
+            'class_assigned': self.classroom.id,
+            'subject': self.subject.id,
+            'task_type': 'homework',
+            'difficulty': 'medium',
+            'importance': 'normal',
+            'estimated_hours': 1.5,
+            'max_marks': 15,
+            'due_date': due.strftime('%Y-%m-%dT%H:%M'),
+        })
+        self.assertEqual(response.status_code, 302)
+        created_task = Task.objects.get(title='Chapter 1 Exercises')
+        self.assertIsNone(created_task.student)
+        self.assertEqual(created_task.class_assigned, self.classroom)
+        self.assertEqual(created_task.target_students().count(), 1)
+        self.assertIn(self.student, created_task.target_students())
+
+
