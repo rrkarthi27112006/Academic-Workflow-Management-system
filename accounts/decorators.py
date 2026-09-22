@@ -1,5 +1,7 @@
 from functools import wraps
+# pyrefly: ignore [missing-import]
 from django.contrib.auth.decorators import login_required
+# pyrefly: ignore [missing-import]
 from django.core.exceptions import PermissionDenied
 
 
