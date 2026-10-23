@@ -8,34 +8,41 @@ def create_notification(user, notification_type, message, link=''):
 
 
 def notify_task_assigned(task):
-    for student in task.target_students():
-        create_notification(
-            student.user, 'task_assigned',
-            f'New task assigned: "{task.title}" ({task.subject.name})',
+    notifications = [
+        Notification(
+            user=student.user,
+            notification_type='task_assigned',
+            message=f'New task assigned: "{task.title}" ({task.subject.name})',
             link=f'/tasks/student/{task.id}/',
         )
+        for student in task.target_students()
+    ]
+    if notifications:
+        Notification.objects.bulk_create(notifications)
 
 
 def notify_new_submission(submission):
-    teacher_user = submission.task.teacher.user
     create_notification(
-        teacher_user, 'new_submission',
+        submission.task.teacher.user,
+        'new_submission',
         f'{submission.student.user.get_full_name() or submission.student.user.username} submitted "{submission.task.title}"',
-        link=f'/tasks/teacher/{submission.task.id}/',
+        link=f'/tasks/teacher/{submission.task_id}/',
     )
 
 
 def notify_reviewed(submission):
+    student_user = submission.student.user
+    task_id = submission.task_id
     create_notification(
-        submission.student.user, 'reviewed',
+        student_user, 'reviewed',
         f'Your submission for "{submission.task.title}" has been reviewed.',
-        link=f'/tasks/student/{submission.task.id}/',
+        link=f'/tasks/student/{task_id}/',
     )
     if submission.feedback:
         create_notification(
-            submission.student.user, 'feedback',
+            student_user, 'feedback',
             f'New feedback on "{submission.task.title}".',
-            link=f'/tasks/student/{submission.task.id}/',
+            link=f'/tasks/student/{task_id}/',
         )
 
 
@@ -46,15 +53,19 @@ def notify_announcement(announcement):
     elif announcement.target_class:
         students = announcement.target_class.students.all()
     else:
-        students = StudentProfile.objects.none()
+        return
 
-    for student in students:
-        create_notification(
-            student.user, 'announcement',
-            f'New announcement: {announcement.title}',
+    notifications = [
+        Notification(
+            user=s.user,
+            notification_type='announcement',
+            message=f'New announcement: {announcement.title}',
             link='/notifications/announcements/',
         )
-
+        for s in students
+    ]
+    if notifications:
+        Notification.objects.bulk_create(notifications)
 
 
 def notify_missing_work(student, teacher_user, count):

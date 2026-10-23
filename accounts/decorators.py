@@ -1,26 +1,19 @@
 from functools import wraps
-# pyrefly: ignore [missing-import]
 from django.contrib.auth.decorators import login_required
-# pyrefly: ignore [missing-import]
 from django.core.exceptions import PermissionDenied
 
 
-def teacher_required(view_func):
-    @wraps(view_func)
-    @login_required
-    def _wrapped(request, *args, **kwargs):
-        if not hasattr(request.user, 'teacher_profile'):
-            raise PermissionDenied('This page is only available to teachers.')
-        return view_func(request, *args, **kwargs)
-    return _wrapped
+def _role_required(profile_attr, role_name):
+    def decorator(view_func):
+        @wraps(view_func)
+        @login_required
+        def _wrapped(request, *args, **kwargs):
+            if not hasattr(request.user, profile_attr):
+                raise PermissionDenied(f'This page is only available to {role_name}.')
+            return view_func(request, *args, **kwargs)
+        return _wrapped
+    return decorator
 
 
-def student_required(view_func):
-    @wraps(view_func)
-    @login_required
-    def _wrapped(request, *args, **kwargs):
-        if not hasattr(request.user, 'student_profile'):
-            raise PermissionDenied('This page is only available to students.')
-        return view_func(request, *args, **kwargs)
-    return _wrapped
-
+teacher_required = _role_required('teacher_profile', 'teachers')
+student_required = _role_required('student_profile', 'students')

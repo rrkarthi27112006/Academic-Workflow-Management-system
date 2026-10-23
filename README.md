@@ -20,8 +20,7 @@ edutrack/
     edutrack/          settings.py, urls.py, wsgi.py
     accounts/          User roles: TeacherProfile, StudentProfile, ParentProfile; auth
     academics/         School, ClassRoom, Subject; class/subject/student management
-    tasks/             Task model + Smart Priority System logic
-    submissions/       Submission model; submit & review flows
+    tasks/             Task & Submission models + Smart Priority System + submit & review flows
     notifications/     Notification + Announcement models, in-app notifications
     dashboard/         Landing page, role dashboards, workload/progress/report logic
     templates/         base.html (shared shell: sidebar, topbar, notifications)

@@ -31,7 +31,7 @@
   {% endif %}
 
   {% if submission.status == 'pending' or submission.status == 'in_progress' or submission.is_resubmission_allowed %}
-    <a href="{% url 'submissions:submit_task' submission.pk %}" class="btn btn-accent">
+    <a href="{% url 'tasks:submit_task' submission.pk %}" class="btn btn-accent">
       {% if submission.status == 'pending' %}Submit Work{% else %}Resubmit Work{% endif %}
     </a>
   {% else %}

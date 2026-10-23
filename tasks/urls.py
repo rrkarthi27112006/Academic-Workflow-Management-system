@@ -12,4 +12,7 @@ urlpatterns = [
 
     path('student/', views.student_task_list, name='student_task_list'),
     path('student/<int:pk>/', views.student_task_detail, name='student_task_detail'),
+
+    path('submit/<int:pk>/', views.submit_task, name='submit_task'),
+    path('review/<int:pk>/', views.review_submission, name='review_submission'),
 ]

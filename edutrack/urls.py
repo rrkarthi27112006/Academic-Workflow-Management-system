@@ -15,7 +15,7 @@ urlpatterns = [
     path('dashboard/', include('dashboard.urls')),
     path('academics/', include('academics.urls')),
     path('tasks/', include('tasks.urls')),
-    path('submissions/', include('submissions.urls')),
+    path('submissions/', include(('tasks.urls', 'tasks'), namespace='submissions')),
     path('notifications/', include('notifications.urls')),
 ]
 

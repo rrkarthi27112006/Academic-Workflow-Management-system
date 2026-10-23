@@ -6,8 +6,7 @@ from django.utils import timezone
 
 from academics.models import School, ClassRoom, Subject
 from accounts.models import TeacherProfile, StudentProfile
-from tasks.models import Task
-from submissions.models import Submission
+from tasks.models import Task, Submission
 from notifications.models import Announcement
 from notifications.utils import notify_task_assigned, notify_announcement
 

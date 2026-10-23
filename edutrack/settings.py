@@ -23,7 +23,6 @@ INSTALLED_APPS = [
     'accounts',
     'academics',
     'tasks',
-    'submissions',
     'notifications',
     'dashboard',
 ]

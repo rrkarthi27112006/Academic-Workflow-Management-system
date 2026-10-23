@@ -1,4 +1,3 @@
-# pyrefly: ignore [missing-import]
 from django.contrib import admin
 from .models import School, ClassRoom, Subject
 
@@ -24,10 +23,9 @@ class ClassRoomAdmin(admin.ModelAdmin):
     filter_horizontal = ('students',)
     inlines = [ClassSubjectInline]
 
+    @admin.display(description='Subjects')
     def get_subjects_display(self, obj):
-        return ", ".join([s.name for s in obj.subjects.all()]) or "None"
-    get_subjects_display.short_description = 'Subjects'
-
+        return ", ".join(s.name for s in obj.subjects.all()) or "None"
 
 
 @admin.register(Subject)
@@ -37,7 +35,6 @@ class SubjectAdmin(admin.ModelAdmin):
     search_fields = ('name', 'code')
     filter_horizontal = ('teachers', 'classes')
 
+    @admin.display(description='Teachers')
     def get_teachers_display(self, obj):
-        return ", ".join([str(t) for t in obj.teachers.all()]) or "None"
-    get_teachers_display.short_description = 'Teachers'
-
+        return ", ".join(str(t) for t in obj.teachers.all()) or "None"

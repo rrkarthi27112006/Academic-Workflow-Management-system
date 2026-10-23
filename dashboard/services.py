@@ -2,12 +2,12 @@
 Business logic for dashboards: smart priority, deadline conflicts,
 workload analysis, missed-task warnings, and academic progress.
 """
-from django.utils import timezone
 from datetime import timedelta
-
+from django.utils import timezone
 from django.db.models import Q
-from tasks.models import Task
-from submissions.models import Submission
+
+from tasks.models import Task, Submission
+from academics.models import ClassRoom
 
 
 def get_tasks_for_student(student):
@@ -16,16 +16,13 @@ def get_tasks_for_student(student):
     ).distinct().select_related('subject', 'teacher__user'))
 
 
-
 def get_submission_map(student):
     return {s.task_id: s for s in Submission.objects.filter(student=student)}
 
 
 def task_status(task, sub_map):
     sub = sub_map.get(task.id)
-    if sub:
-        return sub.effective_status()
-    return 'overdue' if task.is_overdue() else 'pending'
+    return sub.effective_status() if sub else ('overdue' if task.is_overdue() else 'pending')
 
 
 def student_task_buckets(student):
@@ -69,7 +66,6 @@ def student_task_buckets(student):
 
 def smart_priority_for_student(student, limit=3):
     """Top priority tasks the student should work on first."""
-    now = timezone.now()
     sub_map = get_submission_map(student)
     tasks = get_tasks_for_student(student)
     actionable = [
@@ -93,9 +89,8 @@ def deadline_conflicts(student, window_hours=24):
     ]
     total_hours = sum(float(t.estimated_hours) for t in clustered)
 
-    conflict = len(clustered) >= 2 and total_hours >= 3
     return {
-        'conflict': conflict,
+        'conflict': len(clustered) >= 2 and total_hours >= 3,
         'tasks': clustered,
         'total_hours': round(total_hours, 1),
         'window_hours': window_hours,
@@ -120,9 +115,12 @@ def workload_analysis(student):
     completion_pct = round((len(completed) / total) * 100, 1) if total else 0
 
     return {
-        'due_today': due_today, 'due_this_week': due_this_week,
+        'due_today': due_today,
+        'due_this_week': due_this_week,
         'estimated_hours': round(estimated_hours, 1),
-        'completed': completed, 'pending': pending, 'overdue': overdue,
+        'completed': completed,
+        'pending': pending,
+        'overdue': overdue,
         'completion_pct': completion_pct,
     }
 
@@ -136,7 +134,7 @@ def missed_task_warning(student, lookback_days=14, threshold=3):
 
     missed = [
         t for t in tasks
-        if t.due_date >= lookback_start and t.due_date <= now and task_status(t, sub_map) == 'overdue'
+        if lookback_start <= t.due_date <= now and task_status(t, sub_map) == 'overdue'
     ]
     return {'count': len(missed), 'tasks': missed, 'warn': len(missed) >= threshold}
 
@@ -146,10 +144,10 @@ def subject_wise_progress(student):
     tasks = get_tasks_for_student(student)
     by_subject = {}
     for t in tasks:
-        by_subject.setdefault(t.subject.name, {'total': 0, 'completed': 0})
-        by_subject[t.subject.name]['total'] += 1
+        stats = by_subject.setdefault(t.subject.name, {'total': 0, 'completed': 0})
+        stats['total'] += 1
         if task_status(t, sub_map) in ('submitted', 'reviewed'):
-            by_subject[t.subject.name]['completed'] += 1
+            stats['completed'] += 1
 
     result = []
     for subject, data in sorted(by_subject.items()):
@@ -167,65 +165,59 @@ def recent_feedback(student, limit=5):
 # ---------------- Teacher-side services ----------------
 
 def teacher_dashboard_stats(teacher):
-    from academics.models import ClassRoom
     tasks = Task.objects.filter(teacher=teacher)
     classes = ClassRoom.objects.filter(class_teacher=teacher)
-    student_ids = set()
-    for c in classes:
-        student_ids.update(c.students.values_list('id', flat=True))
-    for t in tasks.filter(student__isnull=False):
-        student_ids.add(t.student_id)
+    student_ids = set(classes.values_list('students', flat=True)) | set(
+        tasks.filter(student__isnull=False).values_list('student_id', flat=True)
+    )
+    student_ids.discard(None)
 
     submissions = Submission.objects.filter(task__teacher=teacher)
-    pending_reviews = submissions.filter(status='submitted')
-    overdue_tasks = [t for t in tasks if t.is_overdue()]
+    now = timezone.now()
 
     return {
         'total_classes': classes.count(),
         'total_students': len(student_ids),
-        'active_tasks': tasks.filter(due_date__gte=timezone.now()).count(),
-        'pending_reviews': pending_reviews.count(),
+        'active_tasks': tasks.filter(due_date__gte=now).count(),
+        'pending_reviews': submissions.filter(status='submitted').count(),
         'overdue_submissions': submissions.filter(status__in=['pending', 'in_progress']).count(),
         'recent_tasks': tasks.order_by('-created_at')[:5],
         'recent_submissions': submissions.order_by('-updated_at')[:5],
-        'upcoming_deadlines': tasks.filter(due_date__gte=timezone.now()).order_by('due_date')[:5],
+        'upcoming_deadlines': tasks.filter(due_date__gte=now).order_by('due_date')[:5],
     }
 
 
 def students_with_missing_work(teacher, threshold=1):
-    from accounts.models import StudentProfile
-    tasks = Task.objects.filter(teacher=teacher)
+    tasks = list(Task.objects.filter(teacher=teacher))
     result = []
     students_seen = set()
     for task in tasks:
         for student in task.target_students():
             if student.id in students_seen:
                 continue
+            students_seen.add(student.id)
             sub_map = get_submission_map(student)
             missing = [t for t in tasks if student in t.target_students() and task_status(t, sub_map) == 'overdue']
             if len(missing) >= threshold:
                 result.append({'student': student, 'missing_count': len(missing)})
-                students_seen.add(student.id)
     result.sort(key=lambda r: -r['missing_count'])
     return result
 
 
 def teacher_reports(teacher):
-    from academics.models import ClassRoom
     tasks = list(Task.objects.filter(teacher=teacher))
     submissions = Submission.objects.filter(task__teacher=teacher)
-
     classes = ClassRoom.objects.filter(class_teacher=teacher)
+
+    sub_status_cache = {(s.task_id, s.student_id): s.status for s in submissions}
     class_completion = []
     for c in classes:
         class_tasks = [t for t in tasks if t.class_assigned_id == c.id]
-        possible = 0
-        done = 0
+        possible, done = 0, 0
         for t in class_tasks:
             for student in t.target_students():
                 possible += 1
-                sub = Submission.objects.filter(task=t, student=student).first()
-                if sub and sub.status in ('submitted', 'reviewed'):
+                if sub_status_cache.get((t.id, student.id)) in ('submitted', 'reviewed'):
                     done += 1
         pct = round((done / possible) * 100) if possible else 0
         class_completion.append({'class': c, 'percent': pct})

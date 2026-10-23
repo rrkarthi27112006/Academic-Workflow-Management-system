@@ -1,6 +1,4 @@
-# pyrefly: ignore [missing-import]
 from django.shortcuts import render, redirect, get_object_or_404
-# pyrefly: ignore [missing-import]
 from django.contrib import messages
 
 from accounts.decorators import teacher_required
@@ -11,44 +9,35 @@ from .forms import ClassRoomForm
 
 @teacher_required
 def class_list(request):
-    teacher = request.user.teacher_profile
-    classes = ClassRoom.objects.filter(class_teacher=teacher).prefetch_related('students__user', 'subjects')
+    classes = ClassRoom.objects.filter(class_teacher=request.user.teacher_profile).prefetch_related('students__user', 'subjects')
     return render(request, 'academics/class_list.html', {'classes': classes})
 
 
 @teacher_required
 def class_create(request):
     teacher = request.user.teacher_profile
-    if request.method == 'POST':
-        form = ClassRoomForm(request.POST, teacher=teacher)
-        if form.is_valid():
-            classroom = form.save(commit=False)
-            classroom.class_teacher = teacher
-            if teacher.school:
-                classroom.school = teacher.school
-            classroom.save()
-            form.save_m2m()
-            messages.success(request, f'Class "{classroom.name}" created with {classroom.students.count()} student(s).')
-            return redirect('academics:class_list')
-    else:
-        form = ClassRoomForm(teacher=teacher)
+    form = ClassRoomForm(request.POST or None, teacher=teacher)
+    if request.method == 'POST' and form.is_valid():
+        classroom = form.save(commit=False)
+        classroom.class_teacher = teacher
+        if teacher.school:
+            classroom.school = teacher.school
+        classroom.save()
+        form.save_m2m()
+        messages.success(request, f'Class "{classroom.name}" created with {classroom.students.count()} student(s).')
+        return redirect('academics:class_list')
     return render(request, 'academics/class_form.html', {'form': form, 'title': 'Create Class'})
 
 
 @teacher_required
 def class_edit(request, pk):
-    teacher = request.user.teacher_profile
     classroom = get_object_or_404(ClassRoom, pk=pk)
-    if request.method == 'POST':
-        form = ClassRoomForm(request.POST, instance=classroom, teacher=teacher)
-        if form.is_valid():
-            form.save()
-            messages.success(request, f'Class "{classroom.name}" updated.')
-            return redirect('academics:class_list')
-    else:
-        form = ClassRoomForm(instance=classroom, teacher=teacher)
+    form = ClassRoomForm(request.POST or None, instance=classroom, teacher=request.user.teacher_profile)
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        messages.success(request, f'Class "{classroom.name}" updated.')
+        return redirect('academics:class_list')
     return render(request, 'academics/class_form.html', {'form': form, 'title': 'Edit Class'})
-
 
 
 @teacher_required
@@ -80,4 +69,3 @@ def student_list(request):
     return render(request, 'academics/student_list.html', {
         'students': students, 'classes': classes, 'class_filter': class_filter,
     })
-

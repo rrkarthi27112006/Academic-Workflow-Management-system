@@ -27,7 +27,7 @@
         {% if s.file %}<a href="{{ s.file.url }}" class="btn btn-sm btn-outline">File</a>{% endif %}
         {% if s.image %}<a href="{{ s.image.url }}" class="btn btn-sm btn-outline">Image</a>{% endif %}
         {% if s.status == 'submitted' or s.status == 'reviewed' %}
-          <a href="{% url 'submissions:review_submission' s.pk %}" class="btn btn-sm btn-accent">Review</a>
+          <a href="{% url 'tasks:review_submission' s.pk %}" class="btn btn-sm btn-accent">Review</a>
         {% endif %}
       </td>
     </tr>

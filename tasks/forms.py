@@ -1,9 +1,9 @@
-# pyrefly: ignore [missing-import]
+import os
 from django import forms
-# pyrefly: ignore [missing-import]
-from django.db import models
-from .models import Task
-from accounts.models import StudentProfile
+from django.conf import settings
+from django.db.models import Q
+from .models import Task, Submission
+from academics.models import Subject, ClassRoom
 
 
 class TaskForm(forms.ModelForm):
@@ -29,21 +29,20 @@ class TaskForm(forms.ModelForm):
     def __init__(self, *args, teacher=None, **kwargs):
         self.teacher = teacher
         super().__init__(*args, **kwargs)
-        from academics.models import Subject, ClassRoom
 
         self.fields['class_assigned'].required = True
         self.fields['subject'].required = True
 
+        classes_qs = ClassRoom.objects.all().prefetch_related('subjects')
         if teacher is not None:
-            teacher_classes = ClassRoom.objects.filter(class_teacher=teacher).prefetch_related('subjects')
-            self.fields['class_assigned'].queryset = teacher_classes if teacher_classes.exists() else ClassRoom.objects.all().prefetch_related('subjects')
-
+            teacher_classes = classes_qs.filter(class_teacher=teacher)
+            self.fields['class_assigned'].queryset = teacher_classes if teacher_classes.exists() else classes_qs
             teacher_subjects = Subject.objects.filter(
-                models.Q(teachers=teacher) | models.Q(classes__in=self.fields['class_assigned'].queryset)
+                Q(teachers=teacher) | Q(classes__in=self.fields['class_assigned'].queryset)
             ).distinct()
             self.fields['subject'].queryset = teacher_subjects if teacher_subjects.exists() else Subject.objects.all()
         else:
-            self.fields['class_assigned'].queryset = ClassRoom.objects.all().prefetch_related('subjects')
+            self.fields['class_assigned'].queryset = classes_qs
             self.fields['subject'].queryset = Subject.objects.all()
 
     def clean(self):
@@ -59,13 +58,11 @@ class TaskForm(forms.ModelForm):
         if not subject and class_subjects.exists():
             if class_subjects.count() == 1:
                 cleaned_data['subject'] = class_subjects.first()
-                if 'subject' in self.errors:
-                    del self.errors['subject']
+                self.errors.pop('subject', None)
             else:
                 self.add_error('subject', 'Please select one of the subjects defined for this class.')
-        elif subject and class_subjects.exists():
-            if subject not in class_subjects:
-                self.add_error('subject', f'"{subject.name}" is not assigned to {class_assigned.name}. Please select a subject taught in this class.')
+        elif subject and class_subjects.exists() and subject not in class_subjects:
+            self.add_error('subject', f'"{subject.name}" is not assigned to {class_assigned.name}. Please select a subject taught in this class.')
 
         return cleaned_data
 
@@ -77,3 +74,33 @@ class TaskForm(forms.ModelForm):
         return task
 
 
+class SubmissionForm(forms.ModelForm):
+    class Meta:
+        model = Submission
+        fields = ['text_answer', 'file', 'image']
+        widgets = {'text_answer': forms.Textarea(attrs={'rows': 5, 'placeholder': 'Write your answer here...'})}
+
+    def clean_file(self):
+        f = self.cleaned_data.get('file')
+        if f:
+            ext = os.path.splitext(f.name)[1].lower()
+            if ext not in settings.ALLOWED_UPLOAD_EXTENSIONS:
+                raise forms.ValidationError('Unsupported file type. Allowed: PDF, DOC, DOCX, PPT, PPTX, JPG, PNG.')
+            if f.size > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+                raise forms.ValidationError(f'File too large. Max size is {settings.MAX_UPLOAD_SIZE_MB} MB.')
+        return f
+
+    def clean_image(self):
+        img = self.cleaned_data.get('image')
+        if img:
+            ext = os.path.splitext(img.name)[1].lower()
+            if ext not in ('.jpg', '.jpeg', '.png'):
+                raise forms.ValidationError('Images must be JPG or PNG.')
+        return img
+
+
+class ReviewForm(forms.ModelForm):
+    class Meta:
+        model = Submission
+        fields = ['marks_obtained', 'feedback', 'is_resubmission_allowed']
+        widgets = {'feedback': forms.Textarea(attrs={'rows': 4})}
