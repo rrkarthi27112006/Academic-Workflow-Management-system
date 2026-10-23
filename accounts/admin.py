@@ -30,6 +30,7 @@ admin.site.unregister(User)
 admin.site.register(User, UserAdmin)
 
 # Unregister Group under Authentication
+# pyrefly: ignore [missing-import]
 from django.contrib.auth.models import Group
 try:
     admin.site.unregister(Group)

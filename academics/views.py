@@ -1,4 +1,6 @@
+# pyrefly: ignore [missing-import]
 from django.shortcuts import render, redirect, get_object_or_404
+# pyrefly: ignore [missing-import]
 from django.contrib import messages
 
 from accounts.decorators import teacher_required
